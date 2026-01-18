@@ -122,6 +122,7 @@ interface CliOptions extends OptionValues {
   browserModelStrategy?: 'select' | 'current' | 'ignore';
   browserManualLogin?: boolean;
   browserManualLoginProfileDir?: string;
+  browserProvider?: 'chatgpt' | 'm365-copilot';
   browserThinkingTime?: 'light' | 'standard' | 'extended' | 'heavy';
   browserAllowCookieErrors?: boolean;
   browserAttachments?: string;
@@ -346,6 +347,12 @@ program
     ),
   )
   .addOption(new Option('--browser-url <url>', `Alias for --chatgpt-url (default ${CHATGPT_URL}).`).hideHelp())
+  .addOption(
+    new Option(
+      '--browser-provider <provider>',
+      'Browser automation provider (chatgpt | m365-copilot).',
+    ).choices(['chatgpt', 'm365-copilot']).hideHelp(),
+  )
   .addOption(new Option('--browser-timeout <ms|s|m>', 'Maximum time to wait for an answer (default 1200s / 20m).').hideHelp())
   .addOption(
     new Option('--browser-input-timeout <ms|s|m>', 'Maximum time to wait for the prompt textarea (default 30s).').hideHelp(),
@@ -657,8 +664,10 @@ function buildRunOptions(options: ResolvedCliOptions, overrides: Partial<RunOrac
     browserAttachments: overrides.browserAttachments ?? (options.browserAttachments as 'auto' | 'never' | 'always' | undefined) ?? 'auto',
     browserInlineFiles: overrides.browserInlineFiles ?? options.browserInlineFiles ?? false,
     browserBundleFiles: overrides.browserBundleFiles ?? options.browserBundleFiles ?? false,
+    browserProvider: overrides.browserProvider ?? options.browserProvider,
     background: overrides.background ?? undefined,
     renderPlain: overrides.renderPlain ?? options.renderPlain ?? false,
+
     writeOutputPath: overrides.writeOutputPath ?? options.writeOutputPath,
   };
 }
@@ -707,6 +716,7 @@ function buildRunOptionsFromMetadata(metadata: SessionMetadata): RunOracleOption
     browserAttachments: stored.browserAttachments,
     browserInlineFiles: stored.browserInlineFiles,
     browserBundleFiles: stored.browserBundleFiles,
+    browserProvider: stored.browserProvider,
     background: stored.background,
     renderPlain: stored.renderPlain,
     writeOutputPath: stored.writeOutputPath,
@@ -1341,6 +1351,7 @@ function printDebugHelp(cliName: string): void {
     ['--browser-chrome-path <path>', 'Point to a custom Chrome/Chromium binary.'],
     ['--browser-cookie-path <path>', 'Use a specific Chrome/Chromium cookie store file.'],
     ['--browser-url <url>', 'Alias for --chatgpt-url.'],
+    ['--browser-provider <provider>', 'Browser automation provider (chatgpt | m365-copilot).'],
     ['--browser-timeout <ms|s|m>', 'Cap total wait time for the assistant response.'],
     ['--browser-input-timeout <ms|s|m>', 'Cap how long we wait for the composer textarea.'],
     ['--browser-cookie-wait <ms|s|m>', 'Wait before retrying cookie sync when Chrome cookies are empty or locked.'],
