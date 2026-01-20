@@ -217,6 +217,25 @@ export async function runBrowserMode(options: BrowserRunOptions): Promise<Browse
 	let removeDialogHandler: (() => void) | null = null;
 	let appliedCookies = 0;
 
+	// Global timeout: kill the program if it doesn't complete within the timeout
+	const globalTimeoutMs = config.timeoutMs;
+	let globalTimeoutId: NodeJS.Timeout | null = null;
+	let timedOut = false;
+	const globalTimeoutPromise = new Promise<never>((_, reject) => {
+		globalTimeoutId = setTimeout(() => {
+			timedOut = true;
+			logger(`Browser automation timed out after ${globalTimeoutMs / 1000} seconds. Terminating Chrome.`);
+			// Kill Chrome immediately
+			void Promise.resolve(chrome.kill()).catch(() => {});
+			reject(
+				new BrowserAutomationError(
+					`Browser automation timed out after ${globalTimeoutMs / 1000} seconds`,
+					{ stage: "global-timeout" },
+				),
+			);
+		}, globalTimeoutMs);
+	});
+
 	try {
 		try {
 			client = await connectToChrome(chrome.port, logger, chromeHost);
@@ -239,7 +258,7 @@ export async function runBrowserMode(options: BrowserRunOptions): Promise<Browse
 			});
 		});
 		const raceWithDisconnect = <T>(promise: Promise<T>): Promise<T> =>
-			Promise.race([promise, disconnectPromise]);
+			Promise.race([promise, disconnectPromise, globalTimeoutPromise]);
 		const { Network, Page, Runtime, Input, DOM } = client;
 
 		if (!config.headless && config.hideWindow) {
@@ -767,8 +786,13 @@ export async function runBrowserMode(options: BrowserRunOptions): Promise<Browse
 			normalizedError,
 		);
 	} finally {
+		// Clear global timeout
+		if (globalTimeoutId) {
+			clearTimeout(globalTimeoutId);
+		}
+
 		try {
-			if (!connectionClosedUnexpectedly) {
+			if (!connectionClosedUnexpectedly && !timedOut) {
 				await client?.close();
 			}
 		} catch {
@@ -777,7 +801,7 @@ export async function runBrowserMode(options: BrowserRunOptions): Promise<Browse
 		removeDialogHandler?.();
 		removeTerminationHooks?.();
 		if (!effectiveKeepBrowser) {
-			if (!connectionClosedUnexpectedly) {
+			if (!connectionClosedUnexpectedly && !timedOut) {
 				try {
 					await chrome.kill();
 				} catch {

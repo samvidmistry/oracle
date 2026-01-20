@@ -12,7 +12,7 @@ export const DEFAULT_BROWSER_CONFIG: ResolvedBrowserConfig = {
 	url: CHATGPT_URL,
 	chatgptUrl: CHATGPT_URL,
 	provider: "chatgpt",
-	timeoutMs: 1_200_000,
+	timeoutMs: 120_000, // 2 minutes
 	debugPort: null,
 	inputTimeoutMs: 60_000,
 	cookieSync: true,

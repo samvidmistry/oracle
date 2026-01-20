@@ -12,6 +12,9 @@ const AUTH_HOSTS = [
 
 const AUTH_PATH_MARKERS = ["/signin", "/oauth2", "/authorize", "/consent", "/mfa"];
 
+/** How long to wait for auto-refresh to clear the auth page before failing */
+const AUTH_PAGE_WAIT_MS = 60_000;
+
 function isAuthUrl(rawUrl: string): boolean {
 	try {
 		const parsed = new URL(rawUrl);
@@ -55,17 +58,39 @@ export async function ensureLoggedIn(
 	logger: BrowserLogger,
 ): Promise<void> {
 	const url = await currentUrl(Runtime);
-	if (url && isAuthUrl(url)) {
-		throw new Error(
-			"M365 auth page detected. Run with --browser-provider m365-copilot and sign in in the opened Chrome window.",
-		);
-	}
-	const cta = await hasLoginCta(Runtime);
-	if (cta) {
+	const isOnAuthPage = url && isAuthUrl(url);
+	const hasLoginButton = await hasLoginCta(Runtime);
+
+	// If we detect an auth page or login button, wait to see if auto-refresh clears it
+	if (isOnAuthPage || hasLoginButton) {
+		logger("Auth page detected, waiting up to 1 minute for auto-refresh to complete...");
+		const deadline = Date.now() + AUTH_PAGE_WAIT_MS;
+
+		while (Date.now() < deadline) {
+			await delay(1000);
+
+			const currentUrlNow = await currentUrl(Runtime);
+			const stillOnAuth = currentUrlNow && isAuthUrl(currentUrlNow);
+			const stillHasLogin = await hasLoginCta(Runtime);
+
+			if (!stillOnAuth && !stillHasLogin) {
+				logger("Auth page cleared after auto-refresh");
+				return;
+			}
+		}
+
+		// After waiting, still on auth page - throw appropriate error
+		const finalUrl = await currentUrl(Runtime);
+		if (finalUrl && isAuthUrl(finalUrl)) {
+			throw new Error(
+				"M365 auth page detected after waiting for auto-refresh. Run with --browser-provider m365-copilot and sign in in the opened Chrome window.",
+			);
+		}
 		throw new Error(
 			"M365 login required. Run with --browser-provider m365-copilot and sign in in the opened Chrome window.",
 		);
 	}
+
 	logger("M365 Copilot login check passed");
 }
 

@@ -95,7 +95,7 @@ export async function runBrowserSessionExecution(
 	automationLogger.sessionLog = runOptions.verbose ? log : () => {};
 
 	log(headerLine);
-	log(chalk.dim("This run can take up to an hour (usually ~10 minutes)."));
+	log(chalk.dim("This run will timeout after 2 minutes if no response is received."));
 	if (runOptions.verbose) {
 		log(chalk.dim("Chrome automation does not stream output; this may take a minute..."));
 	}
